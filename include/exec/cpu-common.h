@@ -72,6 +72,8 @@ const char *qemu_ram_get_idstr(RAMBlock *rb);
 bool qemu_ram_is_shared(RAMBlock *rb);
 size_t qemu_ram_pagesize(RAMBlock *block);
 size_t qemu_ram_pagesize_largest(void);
+void qemu_ram_set_migration_flags(RAMBlock *rb, uint32_t flags);
+uint32_t qemu_ram_get_migration_flags(const RAMBlock *rb);
 
 void cpu_physical_memory_rw(hwaddr addr, uint8_t *buf,
                             int len, int is_write);

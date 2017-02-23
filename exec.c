@@ -1741,6 +1741,16 @@ size_t qemu_ram_pagesize_largest(void)
     return largest;
 }
 
+uint32_t qemu_ram_get_migration_flags(const RAMBlock *rb)
+{
+    return rb->migration_flags;
+}
+
+void qemu_ram_set_migration_flags(RAMBlock *rb, uint32_t flags)
+{
+    rb->migration_flags = flags;
+}
+
 static int memory_try_enable_merging(void *addr, size_t len)
 {
     if (!machine_mem_merge(current_machine)) {
