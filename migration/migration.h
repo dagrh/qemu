@@ -21,6 +21,10 @@
 #include "qemu/coroutine_int.h"
 #include "hw/qdev.h"
 
+/* Migration flags to be set using qemu_ram_set_migration_flags */
+/* Postcopy can atomically zero pages in this RAMBlock */
+#define QEMU_MIGFLAG_POSTCOPY_ZERO   0x00000001
+
 /* State for the incoming migration */
 struct MigrationIncomingState {
     QEMUFile *from_src_file;
