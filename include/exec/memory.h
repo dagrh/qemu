@@ -501,7 +501,8 @@ struct MemoryRegionSection {
  *
  * @mr: the #MemoryRegion to be initialized
  * @owner: the object that tracks the region's reference count
- * @name: used for debugging; not visible to the user or ABI
+ * @name: Region name, becomes part of RAMBlock name used in migration stream
+ *        must be unique within any device
  * @size: size of the region; any subregions beyond this size will be clipped
  */
 void memory_region_init(MemoryRegion *mr,
