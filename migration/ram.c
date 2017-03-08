@@ -3179,6 +3179,10 @@ static int ram_save_setup(QEMUFile *f, void *opaque)
     qemu_put_be64(f, ram_bytes_total() | RAM_SAVE_FLAG_MEM_SIZE);
 
     RAMBLOCK_FOREACH_MIGRATABLE(block) {
+        if (!block->idstr[0]) {
+            error_report("%s: RAMBlock with empty name", __func__);
+            return -1;
+        }
         qemu_put_byte(f, strlen(block->idstr));
         qemu_put_buffer(f, (uint8_t *)block->idstr, strlen(block->idstr));
         qemu_put_be64(f, block->used_length);
