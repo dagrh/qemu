@@ -34,8 +34,8 @@ void qtest_clock_warp(int64_t dest);
 #ifndef CONFIG_USER_ONLY
 /* vl.c */
 /* *-user doesn't have configurable SMP topology */
-extern int smp_cores;
-extern int smp_threads;
+extern unsigned int smp_cores;
+extern unsigned int smp_threads;
 #endif
 
 void list_cpus(FILE *f, fprintf_function cpu_fprintf, const char *optarg);
