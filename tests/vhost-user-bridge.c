@@ -184,9 +184,11 @@ vubr_handle_tx(VuDev *dev, int qidx)
             fprintf(stderr, "virtio-net header not in first element\n");
             break;
         }
+#if 0
         if (VHOST_USER_BRIDGE_DEBUG) {
             iov_hexdump(out_sg, out_num, stderr, "TX:", 1024);
         }
+#endif
 
         if (hdrlen) {
             unsigned sg_num = iov_copy(sg, ARRAY_SIZE(sg),
@@ -273,12 +275,15 @@ vubr_backend_recv_cb(int sock, void *ctx)
         .gso_type = VIRTIO_NET_HDR_GSO_NONE
     };
 
-    DPRINT("\n\n   ***   IN UDP RECEIVE CALLBACK    ***\n\n");
-    DPRINT("    hdrlen = %d\n", hdrlen);
+#if 0
+    DPRINT(" ***   IN UDP RECEIVE CALLBACK  hdrlen = %d\n", hdrlen);
+#endif
 
     if (!vu_queue_enabled(dev, vq) ||
         !vu_queue_avail_bytes(dev, vq, hdrlen, 0)) {
+#if 0
         DPRINT("Got UDP packet, but no available descriptors on RX virtq.\n");
+#endif
         return;
     }
 

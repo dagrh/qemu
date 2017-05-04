@@ -250,6 +250,7 @@ static void vhost_dev_assign_memory(struct vhost_dev *dev,
 {
     int from, to;
     struct vhost_memory_region *merged = NULL;
+    fprintf(stderr, "%s: %zx @ %zx (user=%zx)\n", __func__, (size_t)size, (size_t)start_addr, (size_t)uaddr);
     for (from = 0, to = 0; from < dev->mem->nregions; ++from, ++to) {
         struct vhost_memory_region *reg = dev->mem->regions + to;
         uint64_t prlast, urlast;
@@ -682,6 +683,7 @@ static void vhost_region_add(MemoryListener *listener,
     struct vhost_dev *dev = container_of(listener, struct vhost_dev,
                                          memory_listener);
 
+    fprintf(stderr, "%s: mr=%s as=%s\n", __func__, section->mr->name, section->address_space->name);
     if (!vhost_section(section)) {
         return;
     }
@@ -1508,6 +1510,7 @@ int vhost_dev_start(struct vhost_dev *hdev, VirtIODevice *vdev)
     hdev->vdev = vdev;
 
     r = vhost_dev_set_features(hdev, hdev->log_enabled);
+    fprintf(stderr, "%s: features r=%d\n", __func__, r);
     if (r < 0) {
         goto fail_features;
     }
