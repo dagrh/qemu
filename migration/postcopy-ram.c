@@ -23,6 +23,8 @@
 #include "savevm.h"
 #include "postcopy-ram.h"
 #include "ram.h"
+#include "qapi/error.h"
+#include "qemu/notify.h"
 #include "sysemu/sysemu.h"
 #include "sysemu/balloon.h"
 #include "qemu/error-report.h"
@@ -44,6 +46,38 @@ struct PostcopyDiscardState {
     unsigned int nsentwords;
     unsigned int nsentcmds;
 };
+
+/* A notifier chain for postcopy
+ * The notifier should return 0 if it's OK, or a
+ * -errno on error.
+ * The notifier should expect an Error ** as it's data
+ */
+static NotifierWithReturnList postcopy_notifier_list;
+
+void postcopy_infrastructure_init(void)
+{
+    notifier_with_return_list_init(&postcopy_notifier_list);
+}
+
+void postcopy_add_notifier(NotifierWithReturn *nn)
+{
+    notifier_with_return_list_add(&postcopy_notifier_list, nn);
+}
+
+void postcopy_remove_notifier(NotifierWithReturn *n)
+{
+    notifier_with_return_remove(n);
+}
+
+int postcopy_notify(enum PostcopyNotifyReason reason, Error **errp)
+{
+    struct PostcopyNotifyData pnd;
+    pnd.reason = reason;
+    pnd.errp = errp;
+
+    return notifier_with_return_list_notify(&postcopy_notifier_list,
+                                            &pnd);
+}
 
 /* Postcopy needs to detect accesses to pages that haven't yet been copied
  * across, and efficiently map new pages in, the techniques for doing this
@@ -133,6 +167,7 @@ bool postcopy_ram_supported_by_host(void)
     struct uffdio_register reg_struct;
     struct uffdio_range range_struct;
     uint64_t feature_mask;
+    Error *local_err = NULL;
 
     if (qemu_target_page_size() > pagesize) {
         error_report("Target page size bigger than host page size");
@@ -143,6 +178,12 @@ bool postcopy_ram_supported_by_host(void)
     if (ufd == -1) {
         error_report("%s: userfaultfd not available: %s", __func__,
                      strerror(errno));
+        goto out;
+    }
+
+    /* Give devices a chance to object */
+    if (postcopy_notify(POSTCOPY_NOTIFY_PROBE, &local_err)) {
+        error_report_err(local_err);
         goto out;
     }
 
