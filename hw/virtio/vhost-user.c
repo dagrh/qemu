@@ -17,6 +17,8 @@
 #include "sysemu/kvm.h"
 #include "qemu/error-report.h"
 #include "qemu/sockets.h"
+#include "migration/migration.h"
+#include "migration/postcopy-ram.h"
 
 #include <sys/ioctl.h>
 #include <sys/socket.h>
@@ -33,7 +35,7 @@ enum VhostUserProtocolFeature {
     VHOST_USER_PROTOCOL_F_REPLY_ACK = 3,
     VHOST_USER_PROTOCOL_F_NET_MTU = 4,
     VHOST_USER_PROTOCOL_F_SLAVE_REQ = 5,
-
+    VHOST_USER_PROTOCOL_F_POSTCOPY = 6,
     VHOST_USER_PROTOCOL_F_MAX
 };
 
@@ -121,8 +123,10 @@ static VhostUserMsg m __attribute__ ((unused));
 #define VHOST_USER_VERSION    (0x1)
 
 struct vhost_user {
+    struct vhost_dev *dev;
     CharBackend *chr;
     int slave_fd;
+    NotifierWithReturn postcopy_notifier;
 };
 
 static bool ioeventfd_enabled(void)
@@ -701,6 +705,33 @@ out:
     return ret;
 }
 
+static int vhost_user_postcopy_notifier(NotifierWithReturn *notifier,
+                                        void *opaque)
+{
+    struct PostcopyNotifyData *pnd = opaque;
+    struct vhost_user *u = container_of(notifier, struct vhost_user,
+                                         postcopy_notifier);
+    struct vhost_dev *dev = u->dev;
+
+    switch (pnd->reason) {
+    case POSTCOPY_NOTIFY_PROBE:
+        if (!virtio_has_feature(dev->protocol_features,
+                                VHOST_USER_PROTOCOL_F_POSTCOPY)) {
+            /* TODO: Get the device name into this error somehow */
+            error_setg(pnd->errp,
+                       "vhost-user backend not capable of postcopy");
+            return -ENOENT;
+        }
+        break;
+
+    default:
+        /* We ignore notifications we don't know */
+        break;
+    }
+
+    return 0;
+}
+
 static int vhost_user_init(struct vhost_dev *dev, void *opaque)
 {
     uint64_t features, protocol_features;
@@ -712,6 +743,7 @@ static int vhost_user_init(struct vhost_dev *dev, void *opaque)
     u = g_new0(struct vhost_user, 1);
     u->chr = opaque;
     u->slave_fd = -1;
+    u->dev = dev;
     dev->opaque = u;
 
     err = vhost_user_get_features(dev, &features);
@@ -763,10 +795,14 @@ static int vhost_user_init(struct vhost_dev *dev, void *opaque)
                    "VHOST_USER_PROTOCOL_F_LOG_SHMFD feature.");
     }
 
+    u->postcopy_notifier.notify = vhost_user_postcopy_notifier;
+
     err = vhost_setup_slave_channel(dev);
     if (err < 0) {
         return err;
     }
+
+    postcopy_add_notifier(&u->postcopy_notifier);
 
     return 0;
 }
@@ -778,6 +814,7 @@ static int vhost_user_cleanup(struct vhost_dev *dev)
     assert(dev->vhost_ops->backend_type == VHOST_BACKEND_TYPE_USER);
 
     u = dev->opaque;
+    postcopy_remove_notifier(&u->postcopy_notifier);
     if (u->slave_fd >= 0) {
         close(u->slave_fd);
         u->slave_fd = -1;
