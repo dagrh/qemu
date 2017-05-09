@@ -797,7 +797,8 @@ vu_set_vring_err_exec(VuDev *dev, VhostUserMsg *vmsg)
 static bool
 vu_get_protocol_features_exec(VuDev *dev, VhostUserMsg *vmsg)
 {
-    uint64_t features = 1ULL << VHOST_USER_PROTOCOL_F_LOG_SHMFD;
+    uint64_t features = 1ULL << VHOST_USER_PROTOCOL_F_LOG_SHMFD |
+                        1ULL << VHOST_USER_PROTOCOL_F_POSTCOPY;
 
     if (dev->iface->get_protocol_features) {
         features |= dev->iface->get_protocol_features(dev);
