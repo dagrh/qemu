@@ -63,6 +63,7 @@ vu_request_to_string(int req)
         REQ(VHOST_USER_SET_VRING_ENABLE),
         REQ(VHOST_USER_SEND_RARP),
         REQ(VHOST_USER_INPUT_GET_CONFIG),
+        REQ(VHOST_USER_POSTCOPY_ADVISE),
         REQ(VHOST_USER_MAX),
     };
 #undef REQ
@@ -744,6 +745,17 @@ vu_set_vring_enable_exec(VuDev *dev, VhostUserMsg *vmsg)
 }
 
 static bool
+vu_set_postcopy_advise(VuDev *dev, VhostUserMsg *vmsg)
+{
+    /* TODO: Open ufd, pass it back in the request
+     * TODO: Add addresses 
+     */
+    vmsg->payload.u64 = 0xcafe;
+    vmsg->size = sizeof(vmsg->payload.u64);
+    return true; /* = send a reply */
+}
+
+static bool
 vu_process_message(VuDev *dev, VhostUserMsg *vmsg)
 {
     int do_reply = 0;
@@ -806,6 +818,8 @@ vu_process_message(VuDev *dev, VhostUserMsg *vmsg)
         return vu_get_queue_num_exec(dev, vmsg);
     case VHOST_USER_SET_VRING_ENABLE:
         return vu_set_vring_enable_exec(dev, vmsg);
+    case VHOST_USER_POSTCOPY_ADVISE:
+        return vu_set_postcopy_advise(dev, vmsg);
     default:
         vmsg_close_fds(vmsg);
         vu_panic(dev, "Unhandled request: %d", vmsg->request);
