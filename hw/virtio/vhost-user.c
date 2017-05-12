@@ -67,6 +67,7 @@ typedef enum VhostUserRequest {
     VHOST_USER_SET_SLAVE_REQ_FD = 21,
     VHOST_USER_IOTLB_MSG = 22,
     VHOST_USER_SET_VRING_ENDIAN = 23,
+    VHOST_USER_POSTCOPY_ADVISE  = 24,
     VHOST_USER_MAX
 } VhostUserRequest;
 
@@ -724,6 +725,50 @@ out:
     return ret;
 }
 
+/*
+ * Called at the start of an inbound postcopy on reception of the
+ * 'advise' command.
+ */
+static int vhost_user_postcopy_advise(struct vhost_dev *dev, Error **errp)
+{
+    struct vhost_user *u = dev->opaque;
+    CharBackend *chr = u->chr;
+    int ufd;
+    VhostUserMsg msg = {
+        .request = VHOST_USER_POSTCOPY_ADVISE,
+        .flags = VHOST_USER_VERSION,
+    };
+
+    if (vhost_user_write(dev, &msg, NULL, 0) < 0) {
+        error_setg(errp, "Failed to send postcopy_advise to vhost");
+        return -1;
+    }
+
+    if (vhost_user_read(dev, &msg) < 0) {
+        error_setg(errp, "Failed to get postcopy_advise reply from vhost");
+        return -1;
+    }
+
+    if (msg.request != VHOST_USER_POSTCOPY_ADVISE) {
+        error_setg(errp, "Unexpected msg type. Expected %d received %d",
+                     VHOST_USER_POSTCOPY_ADVISE, msg.request);
+        return -1;
+    }
+
+    if (msg.size != sizeof(msg.payload.u64)) {
+        error_setg(errp, "Received bad msg size.");
+        return -1;
+    }
+    ufd = qemu_chr_fe_get_msgfd(chr);
+    if (ufd < 0) {
+        error_setg(errp, "%s: Failed to get ufd", __func__);
+        return -1;
+    }
+
+    /* TODO: register ufd with userfault thread */
+    return 0;
+}
+
 static int vhost_user_postcopy_notifier(NotifierWithReturn *notifier,
                                         void *opaque)
 {
@@ -742,6 +787,9 @@ static int vhost_user_postcopy_notifier(NotifierWithReturn *notifier,
             return -ENOENT;
         }
         break;
+
+    case POSTCOPY_NOTIFY_INBOUND_ADVISE:
+        return vhost_user_postcopy_advise(dev, pnd->errp);
 
     default:
         /* We ignore notifications we don't know */

@@ -606,6 +606,15 @@ Master message types
       and expect this message once (per VQ) during device configuration
       (ie. before the master starts the VQ).
 
+ * VHOST_USER_POSTCOPY_ADVISE
+      Id: 24
+      Master payload: N/A
+      Slave payload: userfault fd + u64
+
+      Master advises slave that a migration with postcopy enabled is underway,
+      the slave must open a userfaultfd for later use.
+      Note that at this stage the migration is still in precopy mode.
+
 Slave message types
 -------------------
 
