@@ -153,7 +153,7 @@ struct PostCopyFD {
     /* Handler to be called whenever we get a poll event */
     pcfdhandler handler;
     /* A string to use in error messages */
-    char *idstr;
+    const char *idstr;
 };
 
 /* Register a userfaultfd owned by an external process for
