@@ -24,6 +24,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <linux/vhost.h>
+#include <linux/userfaultfd.h>
 
 #define VHOST_MEMORY_MAX_NREGIONS    8
 #define VHOST_USER_F_PROTOCOL_FEATURES 30
@@ -130,6 +131,7 @@ struct vhost_user {
     CharBackend *chr;
     int slave_fd;
     NotifierWithReturn postcopy_notifier;
+    struct PostCopyFD  postcopy_fd;
 };
 
 static bool ioeventfd_enabled(void)
@@ -726,6 +728,17 @@ out:
 }
 
 /*
+ * Called back from the postcopy fault thread when a fault is received on our
+ * ufd.
+ * TODO: This is Linux specific
+ */
+static int vhost_user_postcopy_fault_handler(struct PostCopyFD *pcfd,
+                                             void *ufd)
+{
+    return 0;
+}
+
+/*
  * Called at the start of an inbound postcopy on reception of the
  * 'advise' command.
  */
@@ -764,8 +777,14 @@ static int vhost_user_postcopy_advise(struct vhost_dev *dev, Error **errp)
         error_setg(errp, "%s: Failed to get ufd", __func__);
         return -1;
     }
+    fcntl(ufd, F_SETFL, O_NONBLOCK);
 
-    /* TODO: register ufd with userfault thread */
+    /* register ufd with userfault thread */
+    u->postcopy_fd.fd = ufd;
+    u->postcopy_fd.data = dev;
+    u->postcopy_fd.handler = vhost_user_postcopy_fault_handler;
+    u->postcopy_fd.idstr = "vhost-user"; /* Need to find unique name */
+    postcopy_register_shared_ufd(&u->postcopy_fd);
     return 0;
 }
 
