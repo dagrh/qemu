@@ -67,6 +67,7 @@ typedef enum VhostUserRequest {
     VHOST_USER_IOTLB_MSG        = 22,
     VHOST_USER_SET_VRING_ENDIAN = 23,
     VHOST_USER_POSTCOPY_ADVISE  = 24,
+    VHOST_USER_POSTCOPY_LISTEN  = 25,
     VHOST_USER_MAX
 } VhostUserRequest;
 
@@ -237,6 +238,7 @@ struct VuDev {
 
     /* Postcopy data */
     int postcopy_ufd;
+    bool postcopy_listening;
 };
 
 typedef struct VuVirtqElement {

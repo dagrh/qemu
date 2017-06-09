@@ -615,6 +615,12 @@ Master message types
       the slave must open a userfaultfd for later use.
       Note that at this stage the migration is still in precopy mode.
 
+ * VHOST_USER_POSTCOPY_LISTEN
+      Id: 25
+      Master payload: N/A
+
+      Master advises slave that a transition to postcopy mode has happened.
+
 Slave message types
 -------------------
 
