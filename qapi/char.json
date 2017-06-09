@@ -382,6 +382,20 @@
   'base': 'ChardevCommon' }
 
 ##
+# @ChardevString:
+#
+# Configuration info for string chardevs.
+#
+# @text: The text to feed as input
+# @outputdev: An (optional) chardev to take the output
+#
+# Since: 2.10
+##
+{ 'struct': 'ChardevString', 'data': { 'text' : 'str',
+                                     '*outputdev' :'str'},
+  'base': 'ChardevCommon' }
+
+##
 # @ChardevBackend:
 #
 # Configuration info for the new chardev backend.
@@ -408,6 +422,7 @@
                           'if': 'defined(CONFIG_SPICE)' },
             'spiceport': { 'type': 'ChardevSpicePort',
                            'if': 'defined(CONFIG_SPICE)' },
+            'string' : 'ChardevString',
             'vc': 'ChardevVC',
             'ringbuf': 'ChardevRingbuf',
             # next one is just for compatibility

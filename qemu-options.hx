@@ -2443,6 +2443,7 @@ DEF("chardev", HAS_ARG, QEMU_OPTION_chardev,
     "-chardev spicevmc,id=id,name=name[,debug=debug][,logfile=PATH][,logappend=on|off]\n"
     "-chardev spiceport,id=id,name=name[,debug=debug][,logfile=PATH][,logappend=on|off]\n"
 #endif
+    "-chardev string,id=id,text=STRING[,outputdev=name]\n"
     , QEMU_ARCH_ALL
 )
 
@@ -2471,6 +2472,7 @@ Backend is one of:
 @option{parport},
 @option{spicevmc},
 @option{spiceport}.
+@option{string}.
 The specific backend will determine the applicable options.
 
 Use @code{-chardev help} to print all available chardev backend types.
@@ -2731,6 +2733,13 @@ Connect to a spice virtual machine channel, such as vdiport.
 
 Connect to a spice port, allowing a Spice client to handle the traffic
 identified by a name (preferably a fqdn).
+
+@item -chardev string ,id=@var{id} ,text=@var{string}, outputdev=@var{name}
+
+@option{text} input text to be fed to the device
+
+@option{outputdev} optional output device; if missing output goes to stderr
+
 ETEXI
 
 STEXI
