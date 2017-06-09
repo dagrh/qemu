@@ -15,7 +15,9 @@
 
 #include <qemu/osdep.h>
 #include <sys/eventfd.h>
+#include <sys/ioctl.h>
 #include <sys/syscall.h>
+#include <linux/userfaultfd.h>
 #include <linux/vhost.h>
 
 #include "qemu/atomic.h"
@@ -65,6 +67,7 @@ vu_request_to_string(int req)
         REQ(VHOST_USER_SEND_RARP),
         REQ(VHOST_USER_INPUT_GET_CONFIG),
         REQ(VHOST_USER_POSTCOPY_ADVISE),
+        REQ(VHOST_USER_POSTCOPY_LISTEN),
         REQ(VHOST_USER_MAX),
     };
 #undef REQ
@@ -801,6 +804,17 @@ vu_set_postcopy_advise(VuDev *dev, VhostUserMsg *vmsg)
 }
 
 static bool
+vu_set_postcopy_listen(VuDev *dev, VhostUserMsg *vmsg)
+{
+    if (dev->nregions) {
+        vu_panic(dev, "Regions already registered at postcopy-listen");
+        return false;
+    }
+    dev->postcopy_listening = true;
+
+    return false;
+}
+static bool
 vu_process_message(VuDev *dev, VhostUserMsg *vmsg)
 {
     int do_reply = 0;
@@ -865,6 +879,8 @@ vu_process_message(VuDev *dev, VhostUserMsg *vmsg)
         return vu_set_vring_enable_exec(dev, vmsg);
     case VHOST_USER_POSTCOPY_ADVISE:
         return vu_set_postcopy_advise(dev, vmsg);
+    case VHOST_USER_POSTCOPY_LISTEN:
+        return vu_set_postcopy_listen(dev, vmsg);
     default:
         vmsg_close_fds(vmsg);
         vu_panic(dev, "Unhandled request: %d", vmsg->request);

@@ -67,6 +67,7 @@ typedef enum VhostUserRequest {
     VHOST_USER_SET_SLAVE_REQ_FD = 21,
     VHOST_USER_IOTLB_MSG = 22,
     VHOST_USER_POSTCOPY_ADVISE  = 23,
+    VHOST_USER_POSTCOPY_LISTEN  = 24,
     VHOST_USER_MAX
 } VhostUserRequest;
 
@@ -771,6 +772,25 @@ static int vhost_user_postcopy_advise(struct vhost_dev *dev, Error **errp)
     return 0;
 }
 
+/*
+ * Called at the switch to postcopy on reception of the 'listen' command.
+ */
+static int vhost_user_postcopy_listen(struct vhost_dev *dev, Error **errp)
+{
+    VhostUserMsg msg = {
+        .request = VHOST_USER_POSTCOPY_LISTEN,
+        .flags = VHOST_USER_VERSION,
+    };
+
+    trace_vhost_user_postcopy_listen();
+    if (vhost_user_write(dev, &msg, NULL, 0) < 0) {
+        error_setg(errp, "Failed to send postcopy_listen to vhost");
+        return -1;
+    }
+
+    return 0;
+}
+
 static int vhost_user_postcopy_notifier(NotifierWithReturn *notifier,
                                         void *opaque)
 {
@@ -792,6 +812,9 @@ static int vhost_user_postcopy_notifier(NotifierWithReturn *notifier,
 
     case POSTCOPY_NOTIFY_INBOUND_ADVISE:
         return vhost_user_postcopy_advise(dev, pnd->errp);
+
+    case POSTCOPY_NOTIFY_INBOUND_LISTEN:
+        return vhost_user_postcopy_listen(dev, pnd->errp);
 
     default:
         /* We ignore notifications we don't know */
