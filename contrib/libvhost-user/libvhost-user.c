@@ -450,6 +450,39 @@ vu_set_mem_table_exec(VuDev *dev, VhostUserMsg *vmsg)
                    dev_region->mmap_addr);
         }
 
+        if (dev->postcopy_listening) {
+            /* We should already have an open ufd need to mark each memory
+             * range as ufd.
+             * Note: Do we need any madvises? Well it's not been accessed
+             * yet, still probably need no THP to be safe, discard to be safe?
+             */
+            struct uffdio_register reg_struct;
+            /* Note: We might need to go back to using mmap_addr and
+             * len + mmap_offset for * huge pages, but then we do hope not to
+             * see accesses in that area below the offset
+             */
+            reg_struct.range.start = (uintptr_t)(dev_region->mmap_addr +
+                                                 dev_region->mmap_offset);
+            reg_struct.range.len = dev_region->size;
+            reg_struct.mode = UFFDIO_REGISTER_MODE_MISSING;
+
+            if (ioctl(dev->postcopy_ufd, UFFDIO_REGISTER, &reg_struct)) {
+                vu_panic(dev, "%s: Failed to userfault region %d: (ufd=%d)%s\n",
+                         __func__, i, strerror(errno), dev->postcopy_ufd);
+                continue;
+            }
+            if (!(reg_struct.ioctls & ((__u64)1 << _UFFDIO_COPY))) {
+                vu_panic(dev, "%s Region (%d) doesn't support COPY",
+                         __func__, i);
+                continue;
+            }
+            DPRINT("%s: region %d: Registered userfault for %llx + %llx\n",
+                    __func__, i, reg_struct.range.start, reg_struct.range.len);
+            /* TODO: Stash 'zero' support flags somewhere */
+            /* TODO: Get address back to QEMU */
+
+        }
+
         close(vmsg->fds[i]);
     }
 
