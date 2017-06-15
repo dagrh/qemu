@@ -477,11 +477,24 @@ vu_set_mem_table_exec(VuDev *dev, VhostUserMsg *vmsg)
             DPRINT("%s: region %d: Registered userfault for %llx + %llx\n",
                     __func__, i, reg_struct.range.start, reg_struct.range.len);
             /* TODO: Stash 'zero' support flags somewhere */
-            /* TODO: Get address back to QEMU */
 
+            /* TODO: We need to find a way for the qemu not to see the virtual
+             * addresses of the clients, so as to keep better separation.
+             */
+            /* Return the address to QEMU so that it can translate the ufd
+             * fault addresses back.
+             */
+            msg_region->userspace_addr = (uintptr_t)(mmap_addr +
+                                                     dev_region->mmap_offset);
         }
 
         close(vmsg->fds[i]);
+    }
+
+    if (dev->postcopy_listening) {
+        /* Need to return the addresses - send the updated message back */
+        vmsg->fd_num = 0;
+        return true;
     }
 
     return false;

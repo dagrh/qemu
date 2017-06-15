@@ -19,6 +19,7 @@
 #include "qemu/sockets.h"
 #include "migration/migration.h"
 #include "migration/postcopy-ram.h"
+#include "trace.h"
 
 #include <sys/ioctl.h>
 #include <sys/socket.h>
@@ -133,6 +134,7 @@ struct vhost_user {
     int slave_fd;
     NotifierWithReturn postcopy_notifier;
     struct PostCopyFD  postcopy_fd;
+    uint64_t           postcopy_client_bases[VHOST_MEMORY_MAX_NREGIONS];
 };
 
 static bool ioeventfd_enabled(void)
@@ -300,11 +302,13 @@ static int vhost_user_set_log_base(struct vhost_dev *dev, uint64_t base,
 static int vhost_user_set_mem_table(struct vhost_dev *dev,
                                     struct vhost_memory *mem)
 {
+    struct vhost_user *u = dev->opaque;
     int fds[VHOST_MEMORY_MAX_NREGIONS];
     int i, fd;
     size_t fd_num = 0;
     bool reply_supported = virtio_has_feature(dev->protocol_features,
-                                              VHOST_USER_PROTOCOL_F_REPLY_ACK);
+                                          VHOST_USER_PROTOCOL_F_REPLY_ACK) &&
+                           !u->postcopy_fd.handler;
 
     VhostUserMsg msg = {
         .request = VHOST_USER_SET_MEM_TABLE,
@@ -350,6 +354,57 @@ static int vhost_user_set_mem_table(struct vhost_dev *dev,
         return -1;
     }
 
+    if (u->postcopy_fd.handler) {
+        VhostUserMsg msg_reply;
+        int region_i, reply_i;
+        if (vhost_user_read(dev, &msg_reply) < 0) {
+            return -1;
+        }
+
+        if (msg_reply.request != VHOST_USER_SET_MEM_TABLE) {
+            error_report("%s: Received unexpected msg type."
+                         "Expected %d received %d", __func__,
+                         VHOST_USER_SET_MEM_TABLE, msg_reply.request);
+            return -1;
+        }
+        /* We're using the same structure, just reusing one of the
+         * fields, so it should be the same size.
+         */
+        if (msg_reply.size != msg.size) {
+            error_report("%s: Unexpected size for postcopy reply "
+                         "%d vs %d", __func__, msg_reply.size, msg.size);
+            return -1;
+        }
+
+        memset(u->postcopy_client_bases, 0,
+               sizeof(uint64_t) * VHOST_MEMORY_MAX_NREGIONS);
+
+        /* They're in the same order as the regions that were sent
+         * but some of the regions were skipped (above) if they
+         * didn't have fd's
+        */
+        for (reply_i = 0, region_i = 0;
+             region_i < dev->mem->nregions;
+             region_i++) {
+            if (reply_i < fd_num &&
+                msg_reply.payload.memory.regions[region_i].guest_phys_addr ==
+                dev->mem->regions[region_i].guest_phys_addr) {
+                u->postcopy_client_bases[region_i] =
+                    msg_reply.payload.memory.regions[reply_i].userspace_addr;
+                trace_vhost_user_set_mem_table_postcopy(
+                    msg_reply.payload.memory.regions[reply_i].userspace_addr,
+                    msg.payload.memory.regions[reply_i].userspace_addr,
+                    reply_i, region_i);
+                reply_i++;
+            }
+        }
+        if (reply_i != fd_num) {
+            error_report("%s: postcopy reply not fully consumed "
+                         "%d vs %zd",
+                         __func__, reply_i, fd_num);
+            return -1;
+        }
+    }
     if (reply_supported) {
         return process_message_reply(dev, &msg);
     }
