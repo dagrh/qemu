@@ -135,6 +135,14 @@ struct vhost_user {
     NotifierWithReturn postcopy_notifier;
     struct PostCopyFD  postcopy_fd;
     uint64_t           postcopy_client_bases[VHOST_MEMORY_MAX_NREGIONS];
+    /* Length of the region_rb and region_rb_offset arrays */
+    size_t             region_rb_len;
+    /* RAMBlock associated with a given region */
+    RAMBlock         **region_rb;
+    /* The offset from the start of the RAMBlock to the start of the
+     * vhost region.
+     */
+    ram_addr_t        *region_rb_offset;
 };
 
 static bool ioeventfd_enabled(void)
@@ -319,6 +327,17 @@ static int vhost_user_set_mem_table(struct vhost_dev *dev,
         msg.flags |= VHOST_USER_NEED_REPLY_MASK;
     }
 
+    if (u->region_rb_len < dev->mem->nregions) {
+        u->region_rb = g_renew(RAMBlock*, u->region_rb, dev->mem->nregions);
+        u->region_rb_offset = g_renew(ram_addr_t, u->region_rb_offset,
+                                      dev->mem->nregions);
+        memset(&(u->region_rb[u->region_rb_len]), '\0',
+               sizeof(RAMBlock *) * (dev->mem->nregions - u->region_rb_len));
+        memset(&(u->region_rb_offset[u->region_rb_len]), '\0',
+               sizeof(ram_addr_t) * (dev->mem->nregions - u->region_rb_len));
+        u->region_rb_len = dev->mem->nregions;
+    }
+
     for (i = 0; i < dev->mem->nregions; ++i) {
         struct vhost_memory_region *reg = dev->mem->regions + i;
         ram_addr_t offset;
@@ -327,8 +346,14 @@ static int vhost_user_set_mem_table(struct vhost_dev *dev,
         assert((uintptr_t)reg->userspace_addr == reg->userspace_addr);
         mr = memory_region_from_host((void *)(uintptr_t)reg->userspace_addr,
                                      &offset);
+        u->region_rb_offset[i] = offset;
+        u->region_rb[i] = mr->ram_block;
         fd = memory_region_get_fd(mr);
         if (fd > 0) {
+            trace_vhost_user_set_mem_table_withfd(fd_num, mr->name,
+                                                  reg->memory_size,
+                                                  reg->guest_phys_addr,
+                                                  reg->userspace_addr, offset);
             msg.payload.memory.regions[fd_num].userspace_addr = reg->userspace_addr;
             msg.payload.memory.regions[fd_num].memory_size  = reg->memory_size;
             msg.payload.memory.regions[fd_num].guest_phys_addr = reg->guest_phys_addr;
@@ -992,6 +1017,11 @@ static int vhost_user_cleanup(struct vhost_dev *dev)
         close(u->slave_fd);
         u->slave_fd = -1;
     }
+    g_free(u->region_rb);
+    u->region_rb = NULL;
+    g_free(u->region_rb_offset);
+    u->region_rb_offset = NULL;
+    u->region_rb_len = 0;
     g_free(u);
     dev->opaque = 0;
 
