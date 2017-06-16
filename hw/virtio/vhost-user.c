@@ -133,6 +133,11 @@ struct vhost_user {
     NotifierWithReturn postcopy_notifier;
     struct PostCopyFD  postcopy_fd;
     uint64_t           postcopy_client_bases[VHOST_MEMORY_MAX_NREGIONS];
+    RAMBlock          *region_rb[VHOST_MEMORY_MAX_NREGIONS];
+    /* The offset from the start of the RAMBlock to the start of the
+     * vhost region.
+     */
+    ram_addr_t         region_rb_offset[VHOST_MEMORY_MAX_NREGIONS];
 };
 
 static bool ioeventfd_enabled(void)
@@ -324,8 +329,14 @@ static int vhost_user_set_mem_table(struct vhost_dev *dev,
         assert((uintptr_t)reg->userspace_addr == reg->userspace_addr);
         mr = memory_region_from_host((void *)(uintptr_t)reg->userspace_addr,
                                      &offset);
+        u->region_rb_offset[i] = offset;
+        u->region_rb[i] = mr->ram_block;
         fd = memory_region_get_fd(mr);
         if (fd > 0) {
+            trace_vhost_user_set_mem_table_withfd(fd_num, mr->name,
+                                                  reg->memory_size,
+                                                  reg->guest_phys_addr,
+                                                  reg->userspace_addr, offset);
             msg.payload.memory.regions[fd_num].userspace_addr = reg->userspace_addr;
             msg.payload.memory.regions[fd_num].memory_size  = reg->memory_size;
             msg.payload.memory.regions[fd_num].guest_phys_addr = reg->guest_phys_addr;
