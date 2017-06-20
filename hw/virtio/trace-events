@@ -5,6 +5,9 @@ vhost_user_postcopy_fault_handler(const char *name, uint64_t fault_address, int 
 vhost_user_postcopy_fault_handler_loop(int i, uint64_t client_base, uint64_t size) "%d: client%"PRIx64" +%"PRIx64
 vhost_user_postcopy_fault_handler_found(int i, uint64_t region_offset, uint64_t rb_offset) "%d: region_offset: %"PRIx64" rb_offset:%"PRIx64
 vhost_user_postcopy_listen(void) ""
+vhost_user_postcopy_waker(const char *rb, uint64_t rb_offset) "%s + %"PRIx64
+vhost_user_postcopy_waker_found(uint64_t client_addr) "%"PRIx64
+vhost_user_postcopy_waker_nomatch(const char *rb, uint64_t rb_offset) "%s + %"PRIx64
 vhost_user_set_mem_table_postcopy(uint64_t client_addr, uint64_t qhva, int reply_i, int region_i) "client:%"PRIx64" for hva: %"PRIx64" reply %d region %d"
 vhost_user_set_mem_table_withfd(int index, const char *name, uint64_t memory_size, uint64_t guest_phys_addr, uint64_t userspace_addr, uint64_t offset) "%d:%s: size:%"PRIx64" GPA:%"PRIx64" QVA/userspace:%"PRIx64" RB offset:%"PRIx64
 
