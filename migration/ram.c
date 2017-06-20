@@ -165,6 +165,11 @@ int ramblock_recv_bitmap_test(void *host_addr, RAMBlock *rb)
                     rb->receivedmap);
 }
 
+bool ramblock_recv_bitmap_test_byte_offset(uint64_t byte_offset, RAMBlock *rb)
+{
+    return test_bit(byte_offset >> TARGET_PAGE_BITS, rb->receivedmap);
+}
+
 void ramblock_recv_bitmap_set(void *host_addr, RAMBlock *rb)
 {
     set_bit_atomic(ramblock_recv_bitmap_offset(host_addr, rb), rb->receivedmap);

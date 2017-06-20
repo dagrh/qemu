@@ -55,6 +55,7 @@ void ram_handle_compressed(void *host, uint8_t ch, uint64_t size);
 
 void ramblock_recv_map_init(void);
 int ramblock_recv_bitmap_test(void *host_addr, RAMBlock *rb);
+bool ramblock_recv_bitmap_test_byte_offset(uint64_t byte_offset, RAMBlock *rb);
 void ramblock_recv_bitmap_set(void *host_addr, RAMBlock *rb);
 void ramblock_recv_bitmap_clear(void *host_addr, RAMBlock *rb);
 
