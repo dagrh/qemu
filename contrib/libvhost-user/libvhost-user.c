@@ -450,11 +450,39 @@ vu_set_mem_table_exec(VuDev *dev, VhostUserMsg *vmsg)
         }
 
         if (dev->postcopy_listening) {
+            int ret;
             /* We should already have an open ufd need to mark each memory
              * range as ufd.
-             * Note: Do we need any madvises? Well it's not been accessed
-             * yet, still probably need no THP to be safe, discard to be safe?
              */
+
+            /* Discard any mapping we have here; note I can't use MADV_REMOVE
+             * or fallocate to make the hole since I don't want to lose
+             * data that's already arrived in the shared process.
+             * TODO: How to do hugepage
+             */
+            ret = madvise((void *)dev_region->mmap_addr,
+                          dev_region->size + dev_region->mmap_offset,
+                          MADV_DONTNEED);
+            if (ret) {
+                fprintf(stderr,
+                        "%s: Failed to madvise(DONTNEED) region %d: %s\n",
+                        __func__, i, strerror(errno));
+            }
+            /* Turn off transparent hugepages so we dont get lose wakeups
+             * in neighbouring pages.
+             * TODO: Turn this backon later.
+             */
+            ret = madvise((void *)dev_region->mmap_addr,
+                          dev_region->size + dev_region->mmap_offset,
+                          MADV_NOHUGEPAGE);
+            if (ret) {
+                /* Note: This can happen legally on kernels that are configured
+                 * without madvise'able hugepages
+                 */
+                fprintf(stderr,
+                        "%s: Failed to madvise(NOHUGEPAGE) region %d: %s\n",
+                        __func__, i, strerror(errno));
+            }
             struct uffdio_register reg_struct;
             reg_struct.range.start = (uintptr_t)dev_region->mmap_addr;
             reg_struct.range.len = dev_region->size + dev_region->mmap_offset;
