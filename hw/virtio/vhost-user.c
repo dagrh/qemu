@@ -143,6 +143,7 @@ struct vhost_user {
      * vhost region.
      */
     ram_addr_t        *region_rb_offset;
+    uint64_t           in_set_mem_table; /*Hack! 1 while waiting for set_mem_table reply */
 };
 
 static bool ioeventfd_enabled(void)
@@ -338,6 +339,7 @@ static int vhost_user_set_mem_table(struct vhost_dev *dev,
         u->region_rb_len = dev->mem->nregions;
     }
 
+    atomic_set(&u->in_set_mem_table, true);
     for (i = 0; i < dev->mem->nregions; ++i) {
         struct vhost_memory_region *reg = dev->mem->regions + i;
         ram_addr_t offset;
@@ -368,14 +370,15 @@ static int vhost_user_set_mem_table(struct vhost_dev *dev,
     if (!fd_num) {
         error_report("Failed initializing vhost-user memory map, "
                      "consider using -object memory-backend-file share=on");
+        atomic_set(&u->in_set_mem_table, false);
         return -1;
     }
 
     msg.size = sizeof(msg.payload.memory.nregions);
     msg.size += sizeof(msg.payload.memory.padding);
     msg.size += fd_num * sizeof(VhostUserMemoryRegion);
-
     if (vhost_user_write(dev, &msg, fds, fd_num) < 0) {
+        atomic_set(&u->in_set_mem_table, false);
         return -1;
     }
 
@@ -390,6 +393,7 @@ static int vhost_user_set_mem_table(struct vhost_dev *dev,
             error_report("%s: Received unexpected msg type."
                          "Expected %d received %d", __func__,
                          VHOST_USER_SET_MEM_TABLE, msg_reply.request);
+            atomic_set(&u->in_set_mem_table, false);
             return -1;
         }
         /* We're using the same structure, just reusing one of the
@@ -398,6 +402,7 @@ static int vhost_user_set_mem_table(struct vhost_dev *dev,
         if (msg_reply.size != msg.size) {
             error_report("%s: Unexpected size for postcopy reply "
                          "%d vs %d", __func__, msg_reply.size, msg.size);
+            atomic_set(&u->in_set_mem_table, false);
             return -1;
         }
 
@@ -427,9 +432,11 @@ static int vhost_user_set_mem_table(struct vhost_dev *dev,
             error_report("%s: postcopy reply not fully consumed "
                          "%d vs %zd",
                          __func__, reply_i, fd_num);
+            atomic_set(&u->in_set_mem_table, false);
             return -1;
         }
     }
+    atomic_set(&u->in_set_mem_table, false);
     if (reply_supported) {
         return process_message_reply(dev, &msg);
     }
@@ -855,6 +862,14 @@ static int vhost_user_postcopy_waker(struct PostCopyFD *pcfd, RAMBlock *rb,
     int i;
 
     trace_vhost_user_postcopy_waker(qemu_ram_get_idstr(rb), offset);
+    if (!u) {
+        return 0;
+    }
+    while (atomic_mb_read(&u->in_set_mem_table)) {
+        trace_vhost_user_postcopy_waker_spin(qemu_ram_get_idstr(rb));
+        usleep(1000*100);
+    }
+
     /* Translate the offset into an address in the clients address space */
     for (i = 0; i < MIN(dev->mem->nregions, u->region_rb_len); i++) {
         if (u->region_rb[i] == rb &&
