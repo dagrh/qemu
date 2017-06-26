@@ -147,6 +147,34 @@ out:
     return ret;
 }
 
+void ramblock_recv_map_init(void)
+{
+    RAMBlock *rb;
+
+    RAMBLOCK_FOREACH(rb) {
+        unsigned long pages;
+        pages = rb->max_length >> TARGET_PAGE_BITS;
+        assert(!rb->receivedmap);
+        rb->receivedmap = bitmap_new(pages);
+    }
+}
+
+int ramblock_recv_bitmap_test(void *host_addr, RAMBlock *rb)
+{
+    return test_bit(ramblock_recv_bitmap_offset(host_addr, rb),
+                    rb->receivedmap);
+}
+
+void ramblock_recv_bitmap_set(void *host_addr, RAMBlock *rb)
+{
+    set_bit_atomic(ramblock_recv_bitmap_offset(host_addr, rb), rb->receivedmap);
+}
+
+void ramblock_recv_bitmap_clear(void *host_addr, RAMBlock *rb)
+{
+    clear_bit(ramblock_recv_bitmap_offset(host_addr, rb), rb->receivedmap);
+}
+
 /*
  * An outstanding page request, on the source, having been received
  * and queued
@@ -1769,6 +1797,18 @@ int ram_postcopy_send_discard_bitmap(MigrationState *ms)
     return ret;
 }
 
+static void ramblock_recv_bitmap_clear_range(uint64_t start, size_t length,
+                                             RAMBlock *rb)
+{
+    int i, range_count;
+    long nr_bit = start >> TARGET_PAGE_BITS;
+    range_count = length >> TARGET_PAGE_BITS;
+    for (i = 0; i < range_count; i++) {
+        clear_bit(nr_bit, rb->receivedmap);
+        nr_bit += 1;
+    }
+}
+
 /**
  * ram_discard_range: discard dirtied pages at the beginning of postcopy
  *
@@ -1793,6 +1833,7 @@ int ram_discard_range(const char *rbname, uint64_t start, size_t length)
         goto err;
     }
 
+    ramblock_recv_bitmap_clear_range(start, length, rb);
     ret = ram_block_discard_range(rb, start, length);
 
 err:
@@ -2326,8 +2367,14 @@ static int ram_load_setup(QEMUFile *f, void *opaque)
 
 static int ram_load_cleanup(void *opaque)
 {
+    RAMBlock *rb;
     xbzrle_load_cleanup();
     compress_threads_load_cleanup();
+
+    RAMBLOCK_FOREACH(rb) {
+        g_free(rb->receivedmap);
+        rb->receivedmap = NULL;
+    }
     return 0;
 }
 
@@ -2518,6 +2565,7 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
         ram_addr_t addr, total_ram_bytes;
         void *host = NULL;
         uint8_t ch;
+        RAMBlock *rb = NULL;
 
         addr = qemu_get_be64(f);
         flags = addr & ~TARGET_PAGE_MASK;
@@ -2534,15 +2582,15 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
 
         if (flags & (RAM_SAVE_FLAG_ZERO | RAM_SAVE_FLAG_PAGE |
                      RAM_SAVE_FLAG_COMPRESS_PAGE | RAM_SAVE_FLAG_XBZRLE)) {
-            RAMBlock *block = ram_block_from_stream(f, flags);
+            rb = ram_block_from_stream(f, flags);
 
-            host = host_from_ram_block_offset(block, addr);
+            host = host_from_ram_block_offset(rb, addr);
             if (!host) {
                 error_report("Illegal RAM offset " RAM_ADDR_FMT, addr);
                 ret = -EINVAL;
                 break;
             }
-            trace_ram_load_loop(block->idstr, (uint64_t)addr, flags, host);
+            trace_ram_load_loop(rb->idstr, (uint64_t)addr, flags, host);
         }
 
         switch (flags & ~RAM_SAVE_FLAG_CONTINUE) {
@@ -2596,10 +2644,12 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
 
         case RAM_SAVE_FLAG_ZERO:
             ch = qemu_get_byte(f);
+            ramblock_recv_bitmap_set(host, rb);
             ram_handle_compressed(host, ch, TARGET_PAGE_SIZE);
             break;
 
         case RAM_SAVE_FLAG_PAGE:
+            ramblock_recv_bitmap_set(host, rb);
             qemu_get_buffer(f, host, TARGET_PAGE_SIZE);
             break;
 
@@ -2610,10 +2660,13 @@ static int ram_load(QEMUFile *f, void *opaque, int version_id)
                 ret = -EINVAL;
                 break;
             }
+
+            ramblock_recv_bitmap_set(host, rb);
             decompress_data_with_multi_threads(f, host, len);
             break;
 
         case RAM_SAVE_FLAG_XBZRLE:
+            ramblock_recv_bitmap_set(host, rb);
             if (load_xbzrle(f, addr, host) < 0) {
                 error_report("Failed to decompress XBZRLE page at "
                              RAM_ADDR_FMT, addr);

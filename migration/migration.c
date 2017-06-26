@@ -144,6 +144,7 @@ MigrationIncomingState *migration_incoming_get_current(void)
         qemu_mutex_init(&mis_current.rp_mutex);
         qemu_event_init(&mis_current.main_thread_load_event, false);
         once = true;
+        ramblock_recv_map_init();
     }
     return &mis_current;
 }
