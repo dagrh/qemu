@@ -69,6 +69,7 @@ typedef enum VhostUserRequest {
     VHOST_USER_IOTLB_MSG = 22,
     VHOST_USER_POSTCOPY_ADVISE  = 23,
     VHOST_USER_POSTCOPY_LISTEN  = 24,
+    VHOST_USER_POSTCOPY_END     = 25,
     VHOST_USER_MAX
 } VhostUserRequest;
 
