@@ -337,7 +337,12 @@ int postcopy_ram_incoming_cleanup(MigrationIncomingState *mis)
 
     if (mis->have_fault_thread) {
         uint64_t tmp64;
+        Error *local_err = NULL;
 
+        if (postcopy_notify(POSTCOPY_NOTIFY_INBOUND_END, &local_err)) {
+            error_report_err(local_err);
+            return -1;
+        }
         if (qemu_ram_foreach_block(cleanup_range, mis)) {
             return -1;
         }
