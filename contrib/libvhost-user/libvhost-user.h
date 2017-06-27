@@ -68,6 +68,7 @@ typedef enum VhostUserRequest {
     VHOST_USER_SET_VRING_ENDIAN = 23,
     VHOST_USER_POSTCOPY_ADVISE  = 24,
     VHOST_USER_POSTCOPY_LISTEN  = 25,
+    VHOST_USER_POSTCOPY_END     = 26,
     VHOST_USER_MAX
 } VhostUserRequest;
 

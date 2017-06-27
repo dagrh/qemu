@@ -627,6 +627,14 @@ Master message types
 
       Master advises slave that a transition to postcopy mode has happened.
 
+ * VHOST_USER_POSTCOPY_END
+      Id: 26
+      Slave payload: u64
+
+      Master advises that postcopy migration has now completed.  The
+      slave must disable the userfaultfd. The response is an acknowledgement
+      only.
+
 Slave message types
 -------------------
 
