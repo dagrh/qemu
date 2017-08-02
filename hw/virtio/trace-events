@@ -1,5 +1,16 @@
 # See docs/devel/tracing.txt for syntax documentation.
 
+# hw/virtio/vhost.c
+vhost_dev_assign_memory_merged(int from, int to, uint64_t size, uint64_t start_addr, uint64_t uaddr) "f/t=%d/%d 0x%"PRIx64" @ P: 0x%"PRIx64" U: 0x%"PRIx64
+vhost_dev_assign_memory_not_merged(uint64_t size, uint64_t start_addr, uint64_t uaddr) "0x%"PRIx64" @ P: 0x%"PRIx64" U: 0x%"PRIx64
+vhost_dev_assign_memory_entry(uint64_t size, uint64_t start_addr, uint64_t uaddr) "0x%"PRIx64" @ P: 0x%"PRIx64" U: 0x%"PRIx64
+vhost_dev_assign_memory_exit(uint32_t nregions) "%"PRId32
+vhost_huge_page_stretch_and_merge_entry(uint32_t nregions) "%"PRId32
+vhost_huge_page_stretch_and_merge_can(void) ""
+vhost_huge_page_stretch_and_merge_size_align(int d, uint64_t gpa, uint64_t align) "%d: gpa: 0x%"PRIx64" align: 0x%"PRIx64
+vhost_huge_page_stretch_and_merge_start_align(int d, uint64_t gpa, uint64_t align) "%d: gpa: 0x%"PRIx64" align: 0x%"PRIx64
+vhost_section(const char *name, int r) "%s:%d"
+
 # hw/virtio/vhost-user.c
 vhost_user_postcopy_end_entry(void) ""
 vhost_user_postcopy_end_exit(void) ""
