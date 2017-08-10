@@ -10,6 +10,8 @@ vhost_huge_page_stretch_and_merge_can(void) ""
 vhost_huge_page_stretch_and_merge_size_align(int d, uint64_t gpa, uint64_t align) "%d: gpa: 0x%"PRIx64" align: 0x%"PRIx64
 vhost_huge_page_stretch_and_merge_start_align(int d, uint64_t gpa, uint64_t align) "%d: gpa: 0x%"PRIx64" align: 0x%"PRIx64
 vhost_section(const char *name, int r) "%s:%d"
+vhost_dev_would_remerge_no(uint64_t start_addr, uint64_t size) "0x%"PRIx64" + 0x%"PRIx64
+vhost_dev_would_remerge_yes(uint64_t start_addr, uint64_t size) "0x%"PRIx64" + 0x%"PRIx64
 
 # hw/virtio/vhost-user.c
 vhost_user_postcopy_end_entry(void) ""

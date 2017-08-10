@@ -564,6 +564,43 @@ static bool vhost_dev_cmp_memory(struct vhost_dev *dev,
     return uaddr != reg->userspace_addr + start_addr - reg->guest_phys_addr;
 }
 
+/* Called by vhost_set_memory on removal where start_addr/size have
+ * been found to correspond to an existing region (reg).
+ * Returns True iff removing the section would be undone later
+ * by merging (for hugepage) and thus there's no point in removing it.
+ */
+static bool vhost_dev_would_remerge(struct vhost_dev *dev,
+                                    struct vhost_memory_region *reg,
+                                    hwaddr start_addr, ram_addr_t size)
+{
+    uint64_t reglast = range_get_last(reg->guest_phys_addr, reg->memory_size);
+    uint64_t memlast = range_get_last(start_addr, size);
+    ram_addr_t offset;
+    RAMBlock *rb = qemu_ram_block_from_host((void *)reg->userspace_addr,
+                                            false, &offset);
+    size_t reg_pagesize = qemu_ram_pagesize(rb);
+
+    /* If the region being deleted hangs over the end of the existing
+     * region, it's not a case we're interested in.
+     * If it's just a normal sized page then there won't normally be any
+     * alignment merging going on.
+     * and if the hole being cut is larger than the pagesize of the
+     * region then assume it won't be remerged.
+     */
+    if (memlast > reglast || start_addr < reg->guest_phys_addr ||
+        reg_pagesize == getpagesize() ||
+        size >= reg_pagesize) {
+        trace_vhost_dev_would_remerge_no(start_addr, size);
+        return false;
+    }
+
+    /* This is a small chunk overlapping a big hugepage region,
+     * deleting it will get remerged
+     */
+    trace_vhost_dev_would_remerge_yes(start_addr, size);
+    return true;
+}
+
 static void vhost_set_memory(MemoryListener *listener,
                              MemoryRegionSection *section,
                              bool add)
@@ -594,7 +631,10 @@ static void vhost_set_memory(MemoryListener *listener,
             return;
         }
     } else {
-        if (!vhost_dev_find_reg(dev, start_addr, size)) {
+        struct vhost_memory_region *reg = vhost_dev_find_reg(dev,
+                                                             start_addr,
+                                                             size);
+        if (!reg || vhost_dev_would_remerge(dev, reg, start_addr, size)) {
             /* Removing region that we don't access. Nothing to do. */
             return;
         }
