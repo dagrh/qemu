@@ -930,6 +930,12 @@ vu_queue_enabled(VuDev *dev, VuVirtq *vq)
     return vq->enable;
 }
 
+bool
+vu_queue_started(VuDev *dev, VuVirtq *vq)
+{
+    return vq->started;
+}
+
 static inline uint16_t
 vring_avail_flags(VuVirtq *vq)
 {
