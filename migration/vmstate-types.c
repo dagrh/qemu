@@ -676,10 +676,12 @@ static int put_qtailq(QEMUFile *f, void *pv, size_t unused_size,
     trace_put_qtailq(vmsd->name, vmsd->version_id);
 
     QTAILQ_RAW_FOREACH(elm, pv, entry_offset) {
-        qemu_put_byte(f, true);
-        ret = vmstate_save_state(f, vmsd, elm, vmdesc);
-        if (ret) {
-            return ret;
+        if (vmstate_save_needed(vmsd, elm)) {
+            qemu_put_byte(f, true);
+            ret = vmstate_save_state(f, vmsd, elm, vmdesc);
+            if (ret) {
+                return ret;
+            }
         }
     }
     qemu_put_byte(f, false);
