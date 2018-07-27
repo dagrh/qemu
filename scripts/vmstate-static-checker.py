@@ -281,6 +281,10 @@ def check_fields(src_fields, dest_fields, desc, sec):
 
 def check_subsections(src_sub, dest_sub, desc, sec):
     for s_item in src_sub:
+        if not s_item["name"].startswith(desc):
+            print("Bad subsection prefix for " + desc + " .. " + s_item["name"])
+            bump_taint()
+
         found = False
         for d_item in dest_sub:
             if s_item["name"] != d_item["name"]:
